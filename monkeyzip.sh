@@ -1,31 +1,121 @@
 #!/bin/bash
 
 # Define ANSI color codes
-RED='\033[0;31m'    # Red color
-GREEN='\033[0;32m'  # Green color
-YELLOW='\033[0;33m' # Yellow color
-ORANGE='\033[0;33m'  # Orange color
-NC='\033[0m'        # No color
+readonly RED='\033[0;31m'    # Red color
+readonly GREEN='\033[0;32m'  # Green color
+readonly YELLOW='\033[0;33m' # Yellow color
+readonly ORANGE='\033[0;34m'  # Orange color
+readonly NC='\033[0m'        # No color
 
-# Display Help
-display_help () {
-   echo "Monkey Zip - a utility for cracking password-protected ZIP archives using a dictionary."
-   echo -e "\n"
-   echo "Syntax: scriptTemplate monkey_zip < PATH_TO_ARCHIVE > < PATH_TO_DICTIONARY >"
-   echo -e "\n\toptions:"
-   echo -e "\t-h --help  Print this help"
-   echo
-}
+# chars to brute force
+readonly CHARS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()'
+
+# -------------------  Welcome text --------------------
 
 echo -e "${ORANGE}"
 figlet -c "Monkey zip"
 echo -e "${NC}"
 
-# Check if first arg "-h or --help"
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-	display_help
+# ----------------  End of welcome text ----------------
+
+# ---------------- Base attr args ----------------------
+
+use_dictionary=false
+use_brute_force=false
+
+archive_path=""
+dictionary_path=""
+
+#------------------------------------------------------- 
+
+# ----------------------- FUNCTIONS --------------------
+
+#dispaly help menu
+display_help () {
+   echo "Monkey Zip - a utility for cracking password-protected ZIP archives using a dictionary."
+   echo -e "\n"
+   echo "Syntax: scriptTemplate monkey_zip < PATH_TO_ARCHIVE > < PATH_TO_DICTIONARY >"
+   echo -e "\n\toptions:"
+   echo -e "\t\t-h Print this help"
+   echo
+}
+
+# brute force algorithm  
+bruteforce_password() {
+    local characters="$1"
+    local length="$2"
+    
+    for i in $(seq 1 $length); do
+        echo -n "${characters:0:1}"
+    done
+
+    while true; do
+        for i in $(seq 1 $length); do
+            current_char="${password:i-1:1}"
+            current_index="${characters%%$current_char*}"
+            next_index=$(( ( ${#current_index} + 1 ) % ${#characters} ))
+            password="${password:0:i-1}${characters:$next_index:1}${password:i+1}"
+            if [ "${password:$i:1}" != "${characters:0:1}" ]; then
+                echo "$password"
+                return 0
+            fi
+        done
+        if [ "${password:0:1}" == "${characters:((${#characters} - 1)):1}" ]; then
+            password="${characters:0:1}${password:1}"
+            echo "$password"
+        fi
+    done
+}
+
+# ----------------------- end of FUNCTIONS --------------------
+
+
+# ----------- Processing command line parameters --------------
+
+while getopts ":ha:d:b" opt; do
+	case ${opt} in
+		h )
+			# show help options
+			display_help
+			exit 0
+			;;
+
+		a )
+			archive_path="$OPTARG"
+			;;
+
+		d )
+			use_dictionary=true
+			;;
+
+		b ) 
+			use_brute_force=true
+			;;
+		\?)
+            echo "Invalid option: -$OPTARG" >&2
+			exit 1
+            ;;
+
+        :)
+            echo "Option -$OPTARG requires an argument." >&2
+            exit 1
+            ;;
+	esac
+done 
+
+# ------ end of processing command line parameters -----------
+
+if [ "$use_dictionary" = true ]; then
+	echo $archive_path
+    exit 0
+	
+fi
+
+if [ "$use_brute_force" = true ]; then
+	echo "Brute force"
 	exit 0
 fi
+
 
 # Check number of args
 if [ "$#" -ne 2 ]; then
