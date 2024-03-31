@@ -129,7 +129,7 @@ if [ "$use_dictionary" = true ]; then
     
 
     # Get the total number of passwords in the dictionary
-    totalPasswords=$(wc -l <"$dictionaryPath")
+    totalPasswords=$(wc -l <"$dictionary_path")
     currentPassword=0
 
      # Start time
@@ -151,7 +151,7 @@ if [ "$use_dictionary" = true ]; then
             exit 0
         fi
 
-    done <"$dictionaryPath"
+    done <"$dictionary_path"
 
     echo -e "\n${RED}Error:${NC} Failed to extract archive with any of the passwords."
     endTime=$(date +%s)
