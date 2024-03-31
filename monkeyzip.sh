@@ -13,7 +13,7 @@ readonly CHARS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@
 # -------------------  Welcome text --------------------
 
 echo -e "${ORANGE}"
-figlet -c "Monkey zip"
+figlet -c "Monkeyzip"
 echo -e "${NC}"
 
 # ----------------  End of welcome text ----------------
@@ -35,9 +35,13 @@ password=""
 display_help () {
    echo "Monkey Zip - a utility for cracking password-protected ZIP archives using a dictionary."
    echo -e "\n"
-   echo "Syntax: scriptTemplate monkey_zip < PATH_TO_ARCHIVE > < PATH_TO_DICTIONARY >"
-   echo -e "\n\toptions:"
-   echo -e "\t\t-h Print this help"
+   echo "Usege"
+   echo -e "\t $0 [options] <path>"
+   echo
+   echo -e "Options:"
+   echo -e "\t-a <path> Path to target archive"
+   echo -e "\t-d <path> Path to dictionary. If not set, default to brute force."
+   echo -e "\t-h print help and exit"
    echo
 }
 
@@ -127,6 +131,7 @@ if [ "$use_dictionary" = true ]; then
         exit 1
     fi
     
+	echo -e "Attempting to extract archive: $archive_path using dictionary: $dictionary_path\n"
 
     # Get the total number of passwords in the dictionary
     totalPasswords=$(wc -l <"$dictionary_path")
@@ -171,7 +176,8 @@ if [ "$use_brute_force" = true ]; then
         exit 1
     fi
 
-    echo "Brute forcing $archive_path"
+	echo -e "Attempting to extract archive: $archive_path using brute force\n"
+    
     password_length=1
     # Start time
     startTime=$(date +%s)
