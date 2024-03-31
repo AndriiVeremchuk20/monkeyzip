@@ -25,6 +25,7 @@ use_brute_force=true # default use bruteforce
 
 archive_path=""
 dictionary_path=""
+password=""
 
 #------------------------------------------------------- 
 
@@ -45,16 +46,12 @@ bruteforce_password() {
     local characters="$1"
     local length="$2"
     
-    for i in $(seq 1 $length); do
-        echo -n "${characters:0:1}"
-    done
-
     while true; do
-        for i in $(seq 1 $length); do
-            current_char="${password:i-1:1}"
+        for ((i=0; i<$length; i++)); do
+            current_char="${password:$i:1}"
             current_index="${characters%%$current_char*}"
             next_index=$(( ( ${#current_index} + 1 ) % ${#characters} ))
-            password="${password:0:i-1}${characters:$next_index:1}${password:i+1}"
+            password="${password:0:i}${characters:$next_index:1}${password:i+1}"
             if [ "${password:$i:1}" != "${characters:0:1}" ]; then
                 echo "$password"
                 return 0
@@ -67,146 +64,134 @@ bruteforce_password() {
     done
 }
 
+# Attempt to extract archive with given password
+attempt_extraction() {
+    local password="$1"
+    local archive_path="$2"
+    if unzip -P "$password" -t "$archive_path" &>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # ----------------------- end of FUNCTIONS --------------------
 
 
 # ----------- Processing command line parameters --------------
 
 while getopts ":ha:d:" opt; do
-	case ${opt} in
-		h )
-			# show help options
-			display_help
-			exit 0
-			;;
+    case ${opt} in
+        h )
+            # show help options
+            display_help
+            exit 0
+            ;;
 
-		a )
-			archive_path="$OPTARG"
-			;;
+        a )
+            archive_path="$OPTARG"
+            ;;
 
-		d )
-			use_dictionary=true
-			use_brute_force=false
+        d )
+            use_dictionary=true
+            use_brute_force=false
 
-			dictionary_path="$OPTARG"
-			;;
+            dictionary_path="$OPTARG"
+            ;;
 
-		\?)
+        \?)
             echo "Invalid option: -$OPTARG" >&2
-			exit 1
+            exit 1
             ;;
 
         :)
             echo "Option -$OPTARG requires an argument." >&2
             exit 1
             ;;
-	esac
+    esac
 done 
 
 # ------ end of processing command line parameters -----------
 
 # ------------------ using dictionary block ------------------
 if [ "$use_dictionary" = true ]; then
-	
-	# check existing of archive and dictionary
-	if [ ! -f "$archive_path" ]; then
-		echo -e "${RED}Error: Archive file not found${NC}"
-		exit 1
-	fi
+    
+    # check existing of archive and dictionary
+    if [ ! -f "$archive_path" ]; then
+        echo -e "${RED}Error: Archive file not found${NC}"
+        exit 1
+    fi
 
-	if [ ! -f "$dictionary_path" ]; then
-		echo -e "${RED}Error: Dictionary file not found${NC}"
-		exit 1
-	fi
-	
+    if [ ! -f "$dictionary_path" ]; then
+        echo -e "${RED}Error: Dictionary file not found${NC}"
+        exit 1
+    fi
+    
 
-	# Get the total number of passwords in the dictionary
-	totalPasswords=$(wc -l <"$dictionaryPath")
-	currentPassword=0
+    # Get the total number of passwords in the dictionary
+    totalPasswords=$(wc -l <"$dictionaryPath")
+    currentPassword=0
 
-	 # Start time
-	startTime=$(date +%s)
+     # Start time
+    startTime=$(date +%s)
 
-	while FBR= read -r password || [ -n "$password" ]; do
-		((currentPassword++))
+    while FBR= read -r password || [ -n "$password" ]; do
+        ((currentPassword++))
 
-		echo -ne "Progress: ${currentPassword} / ${totalPasswords} \r"
+        echo -ne "Progress: ${currentPassword} / ${totalPasswords} \r"
 
-		# Attempt to extract the archive with the current password
-		if unzip -P "$password" -t "$archivePath" &>/dev/null; then
-			echo -e "\n${GREEN}Success!${NC} Password is: $password"
+        # Attempt to extract the archive with the current password
+        if attempt_extraction "$password" "$archive_path"; then
+            echo -e "\n${GREEN}Success!${NC} Password is: $password"
 
-			# Calculate elapsed time
-			endTime=$(date +%s)
-			timeElapsed=$((endTime - startTime))
-			echo "Time elapsed: $((timeElapsed / 60)) minutes and $((timeElapsed % 60)) seconds."
-			exit 0
-		fi
+            # Calculate elapsed time
+            endTime=$(date +%s)
+            timeElapsed=$((endTime - startTime))
+            echo "Time elapsed: $((timeElapsed / 60)) minutes and $((timeElapsed % 60)) seconds."
+            exit 0
+        fi
 
-	done <"$dictionaryPath"
+    done <"$dictionaryPath"
 
-	echo -e "\n${RED}Error:${NC} Failed to extract archive with any of the passwords."
-	endTime=$(date +%s)
-	timeElapsed=$((endTime - startTime))
-	echo "Time elapsed: $((timeElapsed / 60)) minutes and $((timeElapsed % 60)) seconds."
+    echo -e "\n${RED}Error:${NC} Failed to extract archive with any of the passwords."
+    endTime=$(date +%s)
+    timeElapsed=$((endTime - startTime))
+    echo "Time elapsed: $((timeElapsed / 60)) minutes and $((timeElapsed % 60)) seconds."
     exit 0
 fi
 # ---------------- end using dispaly block -------------------
 
-echo "Brute force $archive_path"
+# ---------------- brute force block -------------------
+
+if [ "$use_brute_force" = true ]; then
+
+	 # check existing of archive and dictionary
+    if [ ! -f "$archive_path" ]; then
+        echo -e "${RED}Error: Archive file not found${NC} use -h to more information"
+        exit 1
+    fi
+
+    echo "Brute forcing $archive_path"
+    password_length=1
+    # Start time
+    startTime=$(date +%s)
+    while true; do
+        bruteforce_password "$CHARS" "$password_length" | while read -r password; do
+            echo -ne "Trying password: $password \r"
+            if attempt_extraction "$password" "$archive_path"; then
+                echo -e "\n${GREEN}Success!${NC} Password is: $password"
+                # Calculate elapsed time
+                endTime=$(date +%s)
+                timeElapsed=$((endTime - startTime))
+                echo "Time elapsed: $((timeElapsed / 60)) minutes and $((timeElapsed % 60)) seconds."
+                exit 0
+            fi
+        done
+        ((password_length++))
+    done
+fi
+
+# ---------------- end brute force block -------------------
+
+echo "Brute force mode complete"
 exit 0
-
-
-# # Check number of args
-# if [ "$#" -ne 2 ]; then
-# 	echo -e "${YELLOW}Warning Usage $0 <path to archive> <path to dictionary> Use '-h' to more information.${NC}"
-# 	exit 1
-# fi
-
-# # Extract comand line args
-# archivePath="$1"
-# dictionaryPath="$2"
-
-# # Check if archive and dictionary exist
-# if [ ! -f "$archivePath" ]; then
-#     echo -e "${RED}Error: Archive file not found${NC}"
-#     exit 1
-# fi
-
-# # Check if archive and dictionary exist
-# if [ ! -f "$dictionaryPath" ]; then
-#     echo -e "${RED}Error: Dictionary file not found${NC}"
-#     exit 1
-# fi
-
-# # Get the total number of passwords in the dictionary
-# totalPasswords=$(wc -l <"$dictionaryPath")
-# currentPassword=0
-
-# # Start time
-# startTime=$(date +%s)
-
-# while FBR= read -r password || [ -n "$password" ]; do
-
-#     ((currentPassword++))
-
-#     echo -ne "Progress: ${currentPassword} / ${totalPasswords} \r"
-
-#     # Attempt to extract the archive with the current password
-#     if unzip -P "$password" -t "$archivePath" &>/dev/null; then
-#         echo -e "\n${GREEN}Success!${NC} Password is: $password"
-
-#         # Calculate elapsed time
-#         endTime=$(date +%s)
-#         timeElapsed=$((endTime - startTime))
-#         echo "Time elapsed: $((timeElapsed / 60)) minutes and $((timeElapsed % 60)) seconds."
-#         exit 0
-#     fi
-
-# done <"$dictionaryPath"
-
-# echo -e "\n${RED}Error:${NC} Failed to extract archive with any of the passwords."
-# endTime=$(date +%s)
-# timeElapsed=$((endTime - startTime))
-# echo "Time elapsed: $((timeElapsed / 60)) minutes and $((timeElapsed % 60)) seconds."
-# exit 0
