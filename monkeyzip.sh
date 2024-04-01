@@ -21,10 +21,12 @@ echo -e "${NC}"
 # ---------------- Base attr args ----------------------
 
 use_dictionary=false
-use_brute_force=true # default use bruteforce
+use_brute_force=false
 
 archive_path=""
 dictionary_path=""
+
+MMAX_PASSWORD_LENGTH=6
 password=""
 
 #------------------------------------------------------- 
@@ -38,34 +40,54 @@ display_help () {
    echo "Usege"
    echo -e "\t $0 [options] <path>"
    echo
-   echo -e "Options:"
+   echo -e "Options"
    echo -e "\t-a <path> Path to target archive"
-   echo -e "\t-d <path> Path to dictionary. If not set, default to brute force."
+   echo -e "\t-d <path> Path to dictionary."
    echo -e "\t-h print help and exit"
    echo
 }
 
-# brute force algorithm  
 bruteforce_password() {
-    local characters="$1"
-    local length="$2"
-    
-    while true; do
-        for ((i=0; i<$length; i++)); do
-            current_char="${password:$i:1}"
-            current_index="${characters%%$current_char*}"
-            next_index=$(( ( ${#current_index} + 1 ) % ${#characters} ))
-            password="${password:0:i}${characters:$next_index:1}${password:i+1}"
-            if [ "${password:$i:1}" != "${characters:0:1}" ]; then
-                echo "$password"
-                return 0
-            fi
+    local chars="$1"
+    local max_length="$2"
+
+    # Loop through each character in chars and start brute force from there
+    for ((i=0; i<${#chars}; i++)); do
+        start_char="${chars:$i:1}"
+        echo "Starting from '$start_char':"
+        
+        # Loop through each length up to max_length
+        for ((length=1; length<=max_length; length++)); do
+            # Loop through each prefix of the current length
+            for ((j=0; j<${#chars}; j++)); do
+                prefix="${chars:$j:1}"
+                if [ "$length" -eq 1 ] || [ "$prefix" != "0" ]; then
+                    bruteforce_recursive "$prefix" "$chars" "$length"
+                fi
+            done
         done
-        if [ "${password:0:1}" == "${characters:((${#characters} - 1)):1}" ]; then
-            password="${characters:0:1}${password:1}"
-            echo "$password"
-        fi
     done
+}
+
+# Function to recursively generate passwords
+bruteforce_recursive() {
+    local prefix="$1"
+    local chars="$2"
+    local max_length="$3"
+
+    # If prefix length equals desired length, print password
+    if [ ${#prefix} -eq "$max_length" ]; then
+        echo -ne "Trying password: $prefix \r"
+        if attempt_extraction "$prefix" "$archive_path"; then
+            echo "Success! Password is: $prefix"
+            exit 0
+        fi
+    else
+        for ((i=0; i<${#chars}; i++)); do
+            next_char="${chars:$i:1}"
+            bruteforce_recursive "$prefix$next_char" "$chars" "$max_length"
+        done
+    fi
 }
 
 # Attempt to extract archive with given password
@@ -84,7 +106,7 @@ attempt_extraction() {
 
 # ----------- Processing command line parameters --------------
 
-while getopts ":ha:d:" opt; do
+while getopts ":ha:d:b:" opt; do
     case ${opt} in
         h )
             # show help options
@@ -102,6 +124,10 @@ while getopts ":ha:d:" opt; do
 
             dictionary_path="$OPTARG"
             ;;
+		b )
+			use_brute_force=true
+			MAX_PASSWORD_LENGTH="$OPTARG"
+			;;
 
         \?)
             echo "Invalid option: -$OPTARG" >&2
@@ -170,31 +196,17 @@ fi
 
 if [ "$use_brute_force" = true ]; then
 
-	 # check existing of archive and dictionary
+ # check existing of archive and dictionary
     if [ ! -f "$archive_path" ]; then
         echo -e "${RED}Error: Archive file not found${NC} use -h to more information"
         exit 1
     fi
 
-	echo -e "Attempting to extract archive: $archive_path using brute force\n"
-    
-    password_length=1
-    # Start time
-    startTime=$(date +%s)
-    while true; do
-        bruteforce_password "$CHARS" "$password_length" | while read -r password; do
-            echo -ne "Trying password: $password \r"
-            if attempt_extraction "$password" "$archive_path"; then
-                echo -e "\n${GREEN}Success!${NC} Password is: $password"
-                # Calculate elapsed time
-                endTime=$(date +%s)
-                timeElapsed=$((endTime - startTime))
-                echo "Time elapsed: $((timeElapsed / 60)) minutes and $((timeElapsed % 60)) seconds."
-                exit 0
-            fi
-        done
-        ((password_length++))
-    done
+	echo "Attempting to extract archive: $archive_path using brute force"
+	
+	echo "Max password length $MAX_PASSWORD_LENGTH"
+
+	bruteforce_password "$CHARS" "$MAX_PASSWORD_LENGTH"
 fi
 
 # ---------------- end brute force block -------------------
